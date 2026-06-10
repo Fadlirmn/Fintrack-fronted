@@ -1,0 +1,15 @@
+# ── Dependencies (besar, exclude untuk speed) ─────────────────
+node_modules/
+
+# ── Build cache ───────────────────────────────────────────────
+.next/
+
+# ── Credentials ───────────────────────────────────────────────
+.env
+.env.*
+
+# ── Development stuff ─────────────────────────────────────────
+*.log
+.DS_Store
+Thumbs.db
+README.md
