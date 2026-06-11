@@ -2,7 +2,7 @@
 
 **Tanggal:** 2026-06-11  
 **Status:** selesai  
-**Versi:** v5  
+**Versi:** v6  
 
 ## Konteks
 Migrasi setup VPS backend via Cloudflare Tunnel (`fintrack.home-sumbul.my.id`), deployment frontend Next.js ke Vercel, perbaikan konfigurasi otentikasi, pembersihan data mockup, dan penambahan fitur kalender harian.
@@ -13,6 +13,7 @@ Migrasi setup VPS backend via Cloudflare Tunnel (`fintrack.home-sumbul.my.id`), 
 - Menghapus semua data mockup fallbacks dan bypass login offline untuk integrasi riil.
 - Mengimplementasikan fitur pelacakan pengeluaran harian berbasis grid kalender interaktif di tab Analisis beserta detail daftar transaksi per tanggal.
 - Mengubah grafik tren sisa dana agar terhitung secara dinamis dari transaksi riil.
+- Mengatur cookie sesi backend menjadi `SameSite=None` dan `Secure=true` agar sesi terkirim dengan aman pada request cross-origin antara Vercel dan VPS.
 
 ## Tindak Lanjut
 - [ ] Lakukan verifikasi integrasi Telegram Bot & Webhook.

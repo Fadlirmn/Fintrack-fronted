@@ -7,3 +7,4 @@
 | 2026-06-11 | v3 | Menambahkan berkas DEPLOY.md untuk repositori frontend |
 | 2026-06-11 | v4 | Perbaikan kegagalan build/deploy Next.js (YAxis & lucide-react barrel) |
 | 2026-06-11 | v5 | Konfigurasi domain produksi, pembersihan mockup total, dan fitur kalender harian |
+| 2026-06-11 | v6 | Konfigurasi cookie sesi SameSite=None untuk mendukung otentikasi cross-origin |
