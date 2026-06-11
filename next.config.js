@@ -18,6 +18,9 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+
+  // Transpile lucide-react untuk menghindari masalah resolusi barrel import pada server-side
+  transpilePackages: ['lucide-react'],
 };
 
 module.exports = nextConfig;

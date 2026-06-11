@@ -1,23 +1,23 @@
 # Deployment FinTrack (Split Vercel & VPS via Cloudflare Tunnel)
 
 **Tanggal:** 2026-06-11  
-**Status:** dalam proses  
-**Versi:** v2
+**Status:** selesai  
+**Versi:** v4  
 
 ## Konteks
-Migrasi setup deployment VPS menggunakan Cloudflare Tunnel (`cloudflared`) dengan domain `server.home-sumbul.my.id`.
+Migrasi setup VPS via Cloudflare Tunnel (`server.home-sumbul.my.id`), setup deployment frontend Next.js, dan perbaikan kegagalan build/deploy.
 
 ## Keputusan & Hasil
-- Menghapus service `certbot` dari Docker Compose; SSL diurus oleh Cloudflare Edge.
-- Menutup port publik Nginx (`80` & `443`) untuk meminimalkan attack surface pada VPS.
-- Menambahkan service `cloudflared` ke dalam network Docker Compose internal.
-- Membuat script deployment otomatis `deploy-tunnel.sh` yang langsung membuild backend, me-route traffic, dan mendaftarkan webhook.
-- Memperbarui file `.env` dan Nginx virtual host sesuai domain `server.home-sumbul.my.id`.
+- Menutup port publik VPS & memakai Cloudflare Tunnel.
+- Menghapus Nginx & Certbot di VPS, SSL diurus Cloudflare.
+- Deploy frontend di Vercel terhubung ke VPS backend.
+- Menambahkan file DEPLOY.md berisi panduan lengkap deploy Vercel & Docker untuk frontend.
+- Memperbaiki kegagalan build Vercel dengan:
+  1. Mengubah properti `formatter` menjadi `tickFormatter` pada `YAxis` (Recharts).
+  2. Menambahkan `transpilePackages: ['lucide-react']` di `next.config.js` untuk mengatasi error barrel import.
 
 ## Tindak Lanjut
-- [ ] Hubungkan connector tunnel Cloudflare Zero Trust dan salin `TUNNEL_TOKEN`.
-- [ ] Buat file `.env` di root VPS dengan variabel `TUNNEL_TOKEN`.
-- [ ] Jalankan `./deploy-tunnel.sh server.home-sumbul.my.id` di VPS.
+- [ ] Monitor status deployment frontend di Vercel.
 
 ---
 *Dibuat otomatis oleh agent · maks. 200 kata*

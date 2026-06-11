@@ -489,7 +489,7 @@ export default function DashboardPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={lineData} margin={{ left: -10, right: 10 }}>
                     <XAxis dataKey="name" stroke="#888888" fontSize={10} tickLine={false} />
-                    <YAxis stroke="#888888" fontSize={10} tickLine={false} formatter={(tick: number) => `${tick / 1000}k`} />
+                    <YAxis stroke="#888888" fontSize={10} tickLine={false} tickFormatter={(tick: number) => `${tick / 1000}k`} />
                     <Tooltip formatter={(value: number) => formatIDR(value)} />
                     <Legend wrapperStyle={{ fontSize: "10px" }} />
                     <Line type="monotone" dataKey="pengeluaran" stroke="#3B82F6" strokeWidth={2} name="Riwayat Pengeluaran" />
