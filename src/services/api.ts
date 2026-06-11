@@ -1,47 +1,32 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-// Helper to make fetch requests with standard credentials and headers
 async function request(path: string, options: RequestInit = {}) {
   const url = `${API_URL}${path}`;
-  const headers = {
-    "Content-Type": "application/json",
-    ...options.headers,
-  };
-
   const config: RequestInit = {
-    credentials: "include", // Essential for HttpOnly Cookie JWT sessions
+    credentials: "include",
     ...options,
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   };
-
   const response = await fetch(url, config);
-
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
   }
-
   return response.json();
 }
 
 export const api = {
-  // Auth Services
+  // ── Auth ──────────────────────────────────────────────────────────────────
   register: (email: string, password: string) =>
-    request("/api/v1/auth/register", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    }),
+    request("/api/v1/auth/register", { method: "POST", body: JSON.stringify({ email, password }) }),
 
   login: (email: string, password: string) =>
-    request("/api/v1/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    }),
+    request("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
 
-  logout: () =>
-    request("/api/v1/auth/logout", {
-      method: "POST",
-    }),
+  logout: () => request("/api/v1/auth/logout", { method: "POST" }),
 
   me: () => request("/api/v1/auth/me"),
 
@@ -51,19 +36,17 @@ export const api = {
       body: JSON.stringify({ monthly_income: monthlyIncome, wealth_goal: wealthGoal }),
     }),
 
-  // Telegram Linking Services
+  // ── Telegram ──────────────────────────────────────────────────────────────
   generateLinkCode: () =>
-    request("/api/v1/telegram/link-code", {
-      method: "POST",
-    }),
+    request("/api/v1/telegram/link-code", { method: "POST" }),
 
-  // Transaction Services
+  // ── Transactions ──────────────────────────────────────────────────────────
   getTransactions: () => request("/api/v1/transactions"),
 
-  createTransaction: (description: string, amount: number, categoryName: string) =>
+  createTransaction: (description: string, amount: number, categoryName: string, date?: string) =>
     request("/api/v1/transactions", {
       method: "POST",
-      body: JSON.stringify({ description, amount, category_name: categoryName }),
+      body: JSON.stringify({ description, amount, category_name: categoryName, date }),
     }),
 
   updateTransaction: (id: string, description: string, amount: number, categoryName: string) =>
@@ -73,11 +56,9 @@ export const api = {
     }),
 
   deleteTransaction: (id: string) =>
-    request(`/api/v1/transactions/${id}`, {
-      method: "DELETE",
-    }),
+    request(`/api/v1/transactions/${id}`, { method: "DELETE" }),
 
-  // Category Services
+  // ── Categories ────────────────────────────────────────────────────────────
   getCategories: () => request("/api/v1/categories"),
 
   createCategory: (name: string, budgetLimit: number) =>
@@ -87,10 +68,26 @@ export const api = {
     }),
 
   deleteCategory: (id: string) =>
-    request(`/api/v1/categories/${id}`, {
-      method: "DELETE",
+    request(`/api/v1/categories/${id}`, { method: "DELETE" }),
+
+  // ── Dashboard ─────────────────────────────────────────────────────────────
+  getDashboardSummary: () => request("/api/v1/dashboard/summary"),
+
+  // ── Fixed Expenses ────────────────────────────────────────────────────────
+  getFixedExpenses: () => request("/api/v1/fixed-expenses"),
+
+  createFixedExpense: (name: string, amount: number) =>
+    request("/api/v1/fixed-expenses", {
+      method: "POST",
+      body: JSON.stringify({ name, amount }),
     }),
 
-  // Dashboard Services
-  getDashboardSummary: () => request("/api/v1/dashboard/summary"),
+  updateFixedExpense: (id: string, data: { name?: string; amount?: number; is_active?: boolean }) =>
+    request(`/api/v1/fixed-expenses/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  deleteFixedExpense: (id: string) =>
+    request(`/api/v1/fixed-expenses/${id}`, { method: "DELETE" }),
 };
