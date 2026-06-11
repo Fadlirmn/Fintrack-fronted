@@ -63,16 +63,6 @@ export default function DashboardPage() {
   useEffect(() => {
     setMounted(true);
     
-    // Load local settings if they exist
-    const savedIncome = localStorage.getItem("monthlyIncome");
-    if (savedIncome) {
-      setMonthlyIncome(parseInt(savedIncome));
-    }
-    const savedGoal = localStorage.getItem("wealthGoal");
-    if (savedGoal) {
-      setWealthGoal(parseInt(savedGoal));
-    }
-
     // Load theme
     const isDark = localStorage.getItem("theme") === "dark" || 
       (!("theme" in localStorage) && window.matchMedia("(prefers-color-scheme: dark)").matches);
@@ -101,6 +91,14 @@ export default function DashboardPage() {
     try {
       const me = await api.me();
       setUser(me);
+
+      // Personalisasi Keuangan dari Database
+      if (me.monthly_income) {
+        setMonthlyIncome(me.monthly_income);
+      }
+      if (me.wealth_goal) {
+        setWealthGoal(me.wealth_goal);
+      }
       
       const txs = await api.getTransactions();
       setTransactions(txs || []);
@@ -157,6 +155,20 @@ export default function DashboardPage() {
       await api.logout();
     } catch (e) {}
     router.push("/");
+  };
+
+  const handleSaveProfile = async () => {
+    setLoading(true);
+    try {
+      await api.updateProfile(monthlyIncome, wealthGoal);
+      // Refresh user profile data
+      const me = await api.me();
+      setUser(me);
+    } catch (err: any) {
+      console.error("Gagal memperbarui profil:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddTransaction = async (e: React.FormEvent) => {
@@ -601,8 +613,9 @@ export default function DashboardPage() {
             </div>
 
             {/* Monthly Income Setting Card */}
-            <div className="bg-white dark:bg-brand-cardDark rounded-2xl p-5 border border-gray-100 dark:border-brand-borderDark shadow-sm">
-              <h3 className="font-bold text-sm uppercase tracking-wider text-gray-900 dark:text-white mb-4">Pengaturan Pendapatan</h3>
+            <div className="bg-white dark:bg-brand-cardDark rounded-2xl p-5 border border-gray-100 dark:border-brand-borderDark shadow-sm space-y-4">
+              <h3 className="font-bold text-sm uppercase tracking-wider text-gray-900 dark:text-white">Pengaturan Keuangan</h3>
+              
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400">
                   Pendapatan Bulanan Bersih (Rupiah)
@@ -614,34 +627,33 @@ export default function DashboardPage() {
                   onChange={(e) => {
                     const val = parseInt(e.target.value) || 0;
                     setMonthlyIncome(val);
-                    localStorage.setItem("monthlyIncome", val.toString());
                   }}
                   className="w-full px-4 py-2.5 border border-gray-200 dark:border-brand-borderDark rounded-xl bg-gray-50 dark:bg-brand-bgDark text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-accentGreen/50 focus:border-brand-accentGreen text-sm font-semibold transition"
                 />
               </div>
-            </div>
 
-            {/* Wealth Hoarding goal interactive slider */}
-            <div className="bg-white dark:bg-brand-cardDark rounded-2xl p-5 border border-gray-100 dark:border-brand-borderDark shadow-sm">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="font-bold text-sm uppercase tracking-wider text-gray-900 dark:text-white">Target Tabungan Bulanan</h3>
-                <span className="text-brand-accentGreen font-extrabold text-sm">{wealthGoal}% ({formatIDR((wealthGoal / 100) * monthlyIncome)})</span>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400">
+                    Target Tabungan Bulanan
+                  </label>
+                  <span className="text-brand-accentGreen font-extrabold text-xs">{wealthGoal}% ({formatIDR((wealthGoal / 100) * monthlyIncome)})</span>
+                </div>
+                
+                <input 
+                  type="range" 
+                  min="10" 
+                  max="80" 
+                  value={wealthGoal}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setWealthGoal(val);
+                  }}
+                  className="w-full accent-brand-accentGreen h-1.5 bg-gray-100 dark:bg-brand-bgDark rounded-lg appearance-none cursor-pointer"
+                />
               </div>
-              
-              <input 
-                type="range" 
-                min="10" 
-                max="80" 
-                value={wealthGoal}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value);
-                  setWealthGoal(val);
-                  localStorage.setItem("wealthGoal", val.toString());
-                }}
-                className="w-full accent-brand-accentGreen h-1.5 bg-gray-100 dark:bg-brand-bgDark rounded-lg appearance-none cursor-pointer"
-              />
 
-              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-brand-borderDark text-xs text-gray-500 dark:text-gray-400 flex flex-col gap-2">
+              <div className="pt-3 border-t border-gray-100 dark:border-brand-borderDark text-xs text-gray-500 dark:text-gray-400 flex flex-col gap-2">
                 <div className="flex justify-between">
                   <span>Alokasi Pengeluaran Aman ({100 - wealthGoal}%):</span>
                   <span className="font-bold text-gray-700 dark:text-slate-200">{formatIDR(((100 - wealthGoal) / 100) * monthlyIncome)}</span>
@@ -651,6 +663,14 @@ export default function DashboardPage() {
                   <span className="font-bold text-brand-accentGreen">{formatIDR(Math.max(((wealthGoal / 100) * monthlyIncome) - summary.total_spending, 0))}</span>
                 </div>
               </div>
+
+              <button
+                onClick={handleSaveProfile}
+                disabled={loading}
+                className="w-full py-2.5 bg-gradient-to-r from-brand-accentGreen to-emerald-600 text-white text-xs font-bold rounded-xl shadow-md hover:brightness-105 active:scale-[0.98] transition disabled:opacity-50"
+              >
+                {loading ? "Menyimpan..." : "Simpan Pengaturan Finansial"}
+              </button>
             </div>
 
             {/* Gamification Skill Tree */}

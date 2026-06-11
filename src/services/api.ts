@@ -45,6 +45,12 @@ export const api = {
 
   me: () => request("/api/v1/auth/me"),
 
+  updateProfile: (monthlyIncome: number, wealthGoal: number) =>
+    request("/api/v1/auth/profile", {
+      method: "PUT",
+      body: JSON.stringify({ monthly_income: monthlyIncome, wealth_goal: wealthGoal }),
+    }),
+
   // Telegram Linking Services
   generateLinkCode: () =>
     request("/api/v1/telegram/link-code", {
