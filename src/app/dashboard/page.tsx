@@ -55,6 +55,7 @@ export default function DashboardPage() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>({ total_spending:0, telegram_spending:0, web_spending:0, categories_breakdown:{}, budget_progress:[] });
   const [fixedExpenses, setFixedExpenses] = useState<any[]>([]);
+  const [apiCategories, setApiCategories] = useState<string[]>([]);
 
   // Profile settings
   const [wealthGoal, setWealthGoal] = useState(30);
@@ -73,6 +74,7 @@ export default function DashboardPage() {
   const [linkCode, setLinkCode] = useState("");
   const [linkExpiry, setLinkExpiry] = useState("");
   const [copied, setCopied] = useState(false);
+  const [toast, setToast] = useState<{msg: string; type: "success"|"error"; out?: boolean} | null>(null);
 
   // Analysis sub-tab
   const [analysisMode, setAnalysisMode] = useState<"charts"|"list">("charts");
@@ -108,11 +110,12 @@ export default function DashboardPage() {
   // ── Data loading ──────────────────────────────────────────────────────────
   const fetchAll = async () => {
     try {
-      const [me, txs, summ, fes] = await Promise.all([
+      const [me, txs, summ, fes, cats] = await Promise.all([
         api.me(),
         api.getTransactions(),
         api.getDashboardSummary(),
         api.getFixedExpenses(),
+        api.getCategories(),
       ]);
       setUser(me);
       if (me.monthly_income) setMonthlyIncome(me.monthly_income);
@@ -120,6 +123,8 @@ export default function DashboardPage() {
       setTransactions(txs || []);
       setSummary(summ || { total_spending:0, telegram_spending:0, web_spending:0, categories_breakdown:{}, budget_progress:[] });
       setFixedExpenses(fes || []);
+      // Simpan nama kategori dari API (lowercase)
+      setApiCategories((cats || []).map((c: any) => c.name?.toLowerCase()).filter(Boolean));
     } catch {
       router.push("/");
     }
@@ -131,6 +136,13 @@ export default function DashboardPage() {
   const spendPct = (100 - wealthGoal) / 100;
   const dailyBudget = Math.round((monthlyIncome * spendPct) / 30);
   const activeFixedTotal = fixedExpenses.filter(f => f.is_active).reduce((s: number, f: any) => s + f.amount, 0);
+
+  // Kategori default + API — deduplicated, default selalu di depan
+  const DEFAULT_CATS = ["makanan","transportasi","hiburan","belanja","tagihan"];
+  const allCategories = [
+    ...DEFAULT_CATS,
+    ...apiCategories.filter(c => !DEFAULT_CATS.includes(c)),
+  ];
 
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
@@ -169,20 +181,59 @@ export default function DashboardPage() {
     if (!desc || !amount) return;
     const numAmount = parseInt(amount);
     const catName = category === "other" ? customCategory : category;
-    setLoading(true);
+    const dateToSend = addDate !== todayStr ? addDate : undefined;
+
+    // Optimistic update: tambah ke local state seketika, tutup modal
+    const optimisticTx = {
+      id: `optimistic-${Date.now()}`,
+      description: desc,
+      amount: numAmount,
+      category_name: catName,
+      source: "web",
+      created_at: dateToSend ? `${dateToSend}T12:00:00Z` : new Date().toISOString(),
+    };
+    setTransactions(prev => [optimisticTx, ...prev]);
+    setSummary((prev: any) => ({
+      ...prev,
+      total_spending: prev.total_spending + numAmount,
+      web_spending: prev.web_spending + numAmount,
+      categories_breakdown: {
+        ...prev.categories_breakdown,
+        [catName]: (prev.categories_breakdown[catName] || 0) + numAmount,
+      },
+    }));
+    setShowAddModal(false);
+    setLoading(false);
+
+    // Toast notifikasi
+    setToast({ msg: "✅ Transaksi ditambahkan!", type: "success" });
+    setTimeout(() => setToast(t => t ? { ...t, out: true } : null), 1800);
+    setTimeout(() => setToast(null), 2100);
+
+    // Simpan ke server & sinkron di background (tanpa menunggu)
     try {
-      const dateToSend = addDate !== todayStr ? addDate : undefined;
       await api.createTransaction(desc, numAmount, catName, dateToSend);
-      setShowAddModal(false);
-      await fetchAll();
-    } catch {
-      setShowAddModal(false);
-    } finally { setLoading(false); }
+    } catch (err) {
+      console.error("Gagal simpan transaksi:", err);
+    }
+    // Refresh data di background untuk pastikan konsistensi
+    fetchAll();
   };
 
   const handleDeleteTransaction = async (id: string) => {
-    try { await api.deleteTransaction(id); await fetchAll(); }
-    catch { setTransactions(transactions.filter((t:any) => t.id !== id)); }
+    // Optimistic: hapus dari UI seketika
+    const deleted = transactions.find((t: any) => t.id === id);
+    setTransactions(prev => prev.filter((t: any) => t.id !== id));
+    if (deleted) {
+      setSummary((prev: any) => ({
+        ...prev,
+        total_spending: Math.max(prev.total_spending - deleted.amount, 0),
+        web_spending: deleted.source === "web" ? Math.max(prev.web_spending - deleted.amount, 0) : prev.web_spending,
+        telegram_spending: deleted.source === "telegram" ? Math.max(prev.telegram_spending - deleted.amount, 0) : prev.telegram_spending,
+      }));
+    }
+    // Hapus di server di background
+    try { await api.deleteTransaction(id); } catch { /* rollback jika gagal */ fetchAll(); }
   };
 
   const handleGenerateCode = async () => {
@@ -270,6 +321,15 @@ export default function DashboardPage() {
           </button>
         </div>
       </header>
+
+      {/* ── Toast notifikasi ─────────────────────────────────────────────── */}
+      {toast && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-2xl shadow-lg flex items-center gap-2 text-sm font-semibold text-white pointer-events-none
+          ${toast.type === "success" ? "bg-emerald-500" : "bg-red-500"}
+          ${toast.out ? "animate-toast-out" : "animate-toast-in"}`}>
+          {toast.msg}
+        </div>
+      )}
 
       {/* Telegram banner — hanya jika belum terhubung */}
       {user && !user.telegram_linked && (
@@ -374,24 +434,41 @@ export default function DashboardPage() {
                   Belum ada pengeluaran. Klik + untuk menambahkan.
                 </div>
               ) : (
-                transactions.slice(0, 15).map((tx: any) => (
-                  <div key={tx.id} className="flex justify-between items-center p-4 bg-white dark:bg-brand-cardDark rounded-2xl border border-gray-100 dark:border-brand-borderDark shadow-sm hover:translate-x-1 transition">
-                    <div>
-                      <span className="font-bold text-sm block">{tx.description}</span>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] bg-gray-100 dark:bg-brand-bgDark px-2 py-0.5 rounded-full capitalize font-semibold text-gray-600 dark:text-gray-400">{tx.category_name}</span>
-                        <span className="text-[10px] text-gray-400">{tx.source === "telegram" ? "via Bot" : "via Web"}</span>
-                        <span className="text-[10px] text-gray-300 dark:text-gray-600">{tx.created_at?.split("T")[0]}</span>
+                transactions.slice(0, 15).map((tx: any) => {
+                  const isOptimistic = tx.id?.startsWith("optimistic-");
+                  return (
+                    <div
+                      key={tx.id}
+                      className={`flex justify-between items-center p-4 rounded-2xl border shadow-sm transition relative overflow-hidden
+                        ${isOptimistic
+                          ? "bg-white dark:bg-brand-cardDark border-brand-accentGreen/40 animate-slide-in"
+                          : "bg-white dark:bg-brand-cardDark border-gray-100 dark:border-brand-borderDark hover:translate-x-1"}
+                      `}
+                    >
+                      {/* Shimmer overlay untuk optimistic item */}
+                      {isOptimistic && (
+                        <div className="absolute inset-0 optimistic-shimmer pointer-events-none z-0" />
+                      )}
+                      <div className="relative z-10">
+                        <span className="font-bold text-sm block">{tx.description}</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] bg-gray-100 dark:bg-brand-bgDark px-2 py-0.5 rounded-full capitalize font-semibold text-gray-600 dark:text-gray-400">{tx.category_name}</span>
+                          {isOptimistic
+                            ? <span className="text-[10px] text-brand-accentGreen/70 font-semibold flex items-center gap-1"><span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-accentGreen animate-pulse" />Menyimpan...</span>
+                            : <><span className="text-[10px] text-gray-400">{tx.source === "telegram" ? "via Bot" : "via Web"}</span><span className="text-[10px] text-gray-300 dark:text-gray-600">{tx.created_at?.split("T")[0]}</span></>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 relative z-10">
+                        <span className="font-extrabold text-sm text-red-500">-{formatIDR(tx.amount)}</span>
+                        {!isOptimistic && (
+                          <button onClick={() => handleDeleteTransaction(tx.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-sm text-red-500">-{formatIDR(tx.amount)}</span>
-                      <button onClick={() => handleDeleteTransaction(tx.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -827,21 +904,24 @@ export default function DashboardPage() {
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Kategori</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {["makanan","transportasi","hiburan","belanja","tagihan"].map(cat => (
+                  {/* Semua kategori: default + dari API — langsung klik, tidak perlu ketik */}
+                  {allCategories.map(cat => (
                     <button key={cat} type="button" onClick={() => setCategory(cat)}
                       className={`py-2 px-1 border rounded-xl text-xs font-semibold capitalize transition ${category===cat?"border-brand-accentGreen bg-brand-accentGreen/10 text-brand-accentGreen":"border-gray-200 dark:border-brand-borderDark bg-gray-50 dark:bg-brand-bgDark text-gray-600 dark:text-gray-400"}`}>
                       {cat}
                     </button>
                   ))}
+                  {/* Tombol + untuk kategori baru yang belum ada */}
                   <button type="button" onClick={() => setCategory("other")}
-                    className={`py-2 px-1 border rounded-xl text-xs font-semibold capitalize transition ${category==="other"?"border-brand-accentGreen bg-brand-accentGreen/10 text-brand-accentGreen":"border-gray-200 dark:border-brand-borderDark bg-gray-50 dark:bg-brand-bgDark text-gray-600 dark:text-gray-400"}`}>
-                    Lainnya
+                    className={`py-2 px-1 border rounded-xl text-xs font-semibold transition ${category==="other"?"border-brand-accentGreen bg-brand-accentGreen/10 text-brand-accentGreen":"border-dashed border-gray-300 dark:border-brand-borderDark bg-gray-50 dark:bg-brand-bgDark text-gray-400"}`}>
+                    + Baru
                   </button>
                 </div>
               </div>
               {category === "other" && (
-                <input type="text" required placeholder="Nama kategori kustom" value={customCategory} onChange={e => setCustomCategory(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-brand-borderDark rounded-xl bg-gray-50 dark:bg-brand-bgDark text-sm focus:outline-none focus:ring-2 focus:ring-brand-accentGreen/50 transition" />
+                <input type="text" required placeholder="Nama kategori baru..." value={customCategory} onChange={e => setCustomCategory(e.target.value)}
+                  autoFocus
+                  className="w-full px-4 py-2.5 border border-brand-accentGreen/50 dark:border-brand-accentGreen/30 rounded-xl bg-gray-50 dark:bg-brand-bgDark text-sm focus:outline-none focus:ring-2 focus:ring-brand-accentGreen/50 transition" />
               )}
               <button type="submit" disabled={loading}
                 className="w-full py-3 bg-gradient-to-r from-brand-accentGreen to-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-brand-accentGreen/20 hover:brightness-105 transition mt-2 disabled:opacity-50">
