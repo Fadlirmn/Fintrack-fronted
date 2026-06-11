@@ -56,22 +56,9 @@ export default function AuthPage() {
 
     try {
       if (isLogin) {
-        await api.login(email, password).catch((err) => {
-          // Bypass connection refused to allow testing frontend mockups offline
-          if (err.message.includes("Failed to fetch") || err.message.includes("Load failed") || err.message.includes("fetch")) {
-            console.warn("Backend offline, bypassing login for preview");
-            return;
-          }
-          throw err;
-        });
+        await api.login(email, password);
       } else {
-        await api.register(email, password).catch((err) => {
-          if (err.message.includes("Failed to fetch") || err.message.includes("Load failed") || err.message.includes("fetch")) {
-            console.warn("Backend offline, bypassing register for preview");
-            return;
-          }
-          throw err;
-        });
+        await api.register(email, password);
       }
       router.push("/dashboard");
     } catch (err: any) {

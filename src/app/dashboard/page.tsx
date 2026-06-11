@@ -56,9 +56,14 @@ export default function DashboardPage() {
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
   
-  // Wealth goal state (Profile tab)
   const [wealthGoal, setWealthGoal] = useState(30); // in percent
   const [monthlyIncome, setMonthlyIncome] = useState(10000000); // Rp 10.000.000 default
+
+  // Analysis tab sub-state (charts vs calendar)
+  const [analysisMode, setAnalysisMode] = useState("charts"); // charts, calendar
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -112,37 +117,8 @@ export default function DashboardPage() {
         budget_progress: []
       });
     } catch (err) {
-      // Backend offline/not ready, populate with high-fidelity mockup data
-      setUser({
-        id: "mock_user_123",
-        email: "sumbul@example.com",
-        telegram_linked: true,
-        telegram_chat_id: "67891011"
-      });
-      
-      const mockTxs = [
-        { id: "1", description: "Beli Kopi Starbucks", amount: 45000, category_name: "makanan", source: "telegram", created_at: new Date(Date.now() - 3600000).toISOString() },
-        { id: "2", description: "Bensin motor", amount: 25000, category_name: "transportasi", source: "web", created_at: new Date(Date.now() - 10800000).toISOString() },
-        { id: "3", description: "Langganan Netflix", amount: 186000, category_name: "hiburan", source: "web", created_at: new Date(Date.now() - 86400000).toISOString() },
-        { id: "4", description: "Beli makan malam", amount: 60000, category_name: "makanan", source: "telegram", created_at: new Date(Date.now() - 172800000).toISOString() },
-      ];
-      setTransactions(mockTxs);
-      
-      setSummary({
-        total_spending: 316000,
-        telegram_spending: 105000,
-        web_spending: 211000,
-        categories_breakdown: {
-          makanan: 105000,
-          transportasi: 25000,
-          hiburan: 186000
-        },
-        budget_progress: [
-          { category_name: "makanan", limit: 1500000, spent: 105000, percentage: 7 },
-          { category_name: "transportasi", limit: 500000, spent: 25000, percentage: 5 },
-          { category_name: "hiburan", limit: 800000, spent: 186000, percentage: 23 }
-        ]
-      });
+      console.error("Gagal memuat data dari backend:", err);
+      router.push("/");
     }
   };
 
@@ -268,13 +244,124 @@ export default function DashboardPage() {
     }));
   };
 
-  // Recharts Line Chart Data (Simulated daily balance trend)
-  const lineData = [
-    { name: "01 Mei", pengeluaran: 120000, forecast: 120000 },
-    { name: "07 Mei", pengeluaran: 280000, forecast: 250000 },
-    { name: "14 Mei", pengeluaran: 390000, forecast: 410000 },
-    { name: "21 Mei", pengeluaran: summary.total_spending || 480000, forecast: 500000 },
-  ];
+  // Recharts Line Chart Data (Dynamically calculated daily trend of the current month)
+  const getLineData = () => {
+    const INDONESIAN_MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des"];
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const currentMonthStr = String(currentMonth + 1).padStart(2, "0");
+    const currentYearStr = String(currentYear);
+
+    // Group transactions of the current month by day
+    const dailyMap: { [key: string]: number } = {};
+    const daysInMonth = now.getDate(); // Up to today
+    
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateKey = `${currentYearStr}-${currentMonthStr}-${String(d).padStart(2, "0")}`;
+      dailyMap[dateKey] = 0;
+    }
+
+    transactions.forEach((tx: any) => {
+      if (!tx.created_at) return;
+      const dateStr = tx.created_at.split("T")[0]; // YYYY-MM-DD
+      if (dateStr.startsWith(`${currentYearStr}-${currentMonthStr}`)) {
+        dailyMap[dateStr] = (dailyMap[dateStr] || 0) + tx.amount;
+      }
+    });
+
+    const data = Object.keys(dailyMap)
+      .sort()
+      .map((dateKey) => {
+        const dayNum = dateKey.split("-")[2];
+        const dayLabel = `${dayNum} ${INDONESIAN_MONTH_SHORT[currentMonth]}`;
+        const totalAmount = dailyMap[dateKey];
+        return {
+          name: dayLabel,
+          pengeluaran: totalAmount,
+          forecast: totalAmount * 0.95 // simple representation
+        };
+      });
+
+    if (data.length === 0) {
+      return [
+        { name: `01 ${INDONESIAN_MONTH_SHORT[currentMonth]}`, pengeluaran: 0, forecast: 0 }
+      ];
+    }
+    return data;
+  };
+
+  const lineData = getLineData();
+
+  // Calendar utility functions
+  const INDONESIAN_MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+  
+  const handlePrevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(prev => prev - 1);
+    } else {
+      setCurrentMonth(prev => prev - 1);
+    }
+    setSelectedDateStr(null);
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(prev => prev + 1);
+    } else {
+      setCurrentMonth(prev => prev + 1);
+    }
+    setSelectedDateStr(null);
+  };
+
+  const getDaysInMonth = (y: number, m: number) => {
+    return new Date(y, m + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (y: number, m: number) => {
+    return new Date(y, m, 1).getDay();
+  };
+
+  const getCalendarSpendingMap = () => {
+    const map: { [key: string]: number } = {};
+    transactions.forEach((tx: any) => {
+      if (!tx.created_at) return;
+      const dateStr = tx.created_at.split("T")[0]; // YYYY-MM-DD
+      map[dateStr] = (map[dateStr] || 0) + tx.amount;
+    });
+    return map;
+  };
+
+  const calendarSpendingMap = getCalendarSpendingMap();
+
+  const getDaysArray = () => {
+    const totalDays = getDaysInMonth(currentYear, currentMonth);
+    const firstDay = getFirstDayOfMonth(currentYear, currentMonth);
+    const days: (number | null)[] = [];
+    
+    // Empty padding slots
+    for (let i = 0; i < firstDay; i++) {
+      days.push(null);
+    }
+    // Calendar days
+    for (let d = 1; d <= totalDays; d++) {
+      days.push(d);
+    }
+    return days;
+  };
+
+  const formatShortIDR = (val: number) => {
+    if (val >= 1000000) return `${(val / 1000000).toFixed(1)}jt`;
+    if (val >= 1000) return `${Math.round(val / 1000)}k`;
+    return val.toString();
+  };
+
+  const getTransactionsForSelectedDate = () => {
+    if (!selectedDateStr) return [];
+    return transactions.filter((tx: any) => tx.created_at && tx.created_at.split("T")[0] === selectedDateStr);
+  };
 
   if (!mounted) return null;
 
@@ -430,74 +517,227 @@ export default function DashboardPage() {
         {/* TAB 2: AI ANALYSIS */}
         {activeTab === "analysis" && (
           <div className="space-y-6 animate-fadeIn">
-            {/* Financial IQ score gauge */}
-            <div className="bg-white dark:bg-brand-cardDark rounded-2xl p-5 border border-gray-100 dark:border-brand-borderDark shadow-sm text-center">
-              <h3 className="font-bold text-sm uppercase tracking-wider text-gray-900 dark:text-white mb-4">Financial IQ Score</h3>
-              <div className="flex flex-col items-center justify-center relative py-4">
-                {/* SVG Radial Gauge */}
-                <svg className="w-32 h-32">
-                  <circle className="text-gray-100 dark:text-brand-bgDark" strokeWidth="10" stroke="currentColor" fill="transparent" r="50" cx="64" cy="64" />
-                  <circle className="text-brand-accentGreen" strokeWidth="10" strokeDasharray="314.15" strokeDashoffset={314.15 - (314.15 * 78 / 100)} strokeLinecap="round" stroke="currentColor" fill="transparent" r="50" cx="64" cy="64" />
-                </svg>
-                <div className="absolute text-center">
-                  <span className="text-3xl font-extrabold tracking-tight">78</span>
-                  <span className="block text-[10px] text-gray-400 uppercase font-bold mt-0.5">Healthy</span>
-                </div>
-              </div>
-              <div className="mt-2 bg-gradient-to-r from-brand-accentGreen/10 to-emerald-500/10 p-3 rounded-xl border border-brand-accentGreen/20 flex gap-2.5 items-start text-left">
-                <Brain className="h-5 w-5 text-brand-accentGreen flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-                  *AI Insight:* Pengeluaran makanan naik 15% minggu ini. Anda berada dalam batas aman budget harian, namun kurangi langganan hiburan untuk menjaga target hoard kekayaan 30%.
-                </p>
-              </div>
+            {/* Mode Toggle: Grafik vs Kalender */}
+            <div className="flex bg-white dark:bg-brand-cardDark p-1.5 rounded-2xl border border-gray-100 dark:border-brand-borderDark shadow-sm">
+              <button 
+                onClick={() => setAnalysisMode("charts")}
+                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition duration-150 ${analysisMode === "charts" ? "bg-gradient-to-r from-brand-accentGreen to-emerald-600 text-white shadow" : "text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-brand-bgDark"}`}
+              >
+                Grafik Tren
+              </button>
+              <button 
+                onClick={() => { setAnalysisMode("calendar"); setSelectedDateStr(null); }}
+                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition duration-150 ${analysisMode === "calendar" ? "bg-gradient-to-r from-brand-accentGreen to-emerald-600 text-white shadow" : "text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-brand-bgDark"}`}
+              >
+                Kalender Harian
+              </button>
             </div>
 
-            {/* Donut Chart: Spending Breakdown */}
-            <div className="bg-white dark:bg-brand-cardDark rounded-2xl p-5 border border-gray-100 dark:border-brand-borderDark shadow-sm">
-              <h3 className="font-bold text-sm uppercase tracking-wider text-gray-900 dark:text-white mb-4">Distribusi Pengeluaran</h3>
-              {getPieData().length === 0 ? (
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-4">Belum ada data pengeluaran.</p>
-              ) : (
-                <div className="h-60">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={getPieData()}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {getPieData().map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value: number) => formatIDR(value)} />
-                      <Legend iconType="circle" wrapperStyle={{ fontSize: "10px", marginTop: "10px" }} />
-                    </PieChart>
-                  </ResponsiveContainer>
+            {analysisMode === "charts" && (
+              <div className="space-y-6 animate-fadeIn">
+                {/* Financial IQ score gauge */}
+                <div className="bg-white dark:bg-brand-cardDark rounded-2xl p-5 border border-gray-100 dark:border-brand-borderDark shadow-sm text-center">
+                  <h3 className="font-bold text-sm uppercase tracking-wider text-gray-900 dark:text-white mb-4">Financial IQ Score</h3>
+                  <div className="flex flex-col items-center justify-center relative py-4">
+                    {/* SVG Radial Gauge */}
+                    <svg className="w-32 h-32">
+                      <circle className="text-gray-100 dark:text-brand-bgDark" strokeWidth="10" stroke="currentColor" fill="transparent" r="50" cx="64" cy="64" />
+                      <circle className="text-brand-accentGreen" strokeWidth="10" strokeDasharray="314.15" strokeDashoffset={314.15 - (314.15 * 78 / 100)} strokeLinecap="round" stroke="currentColor" fill="transparent" r="50" cx="64" cy="64" />
+                    </svg>
+                    <div className="absolute text-center">
+                      <span className="text-3xl font-extrabold tracking-tight">78</span>
+                      <span className="block text-[10px] text-gray-400 uppercase font-bold mt-0.5">Healthy</span>
+                    </div>
+                  </div>
+                  <div className="mt-2 bg-gradient-to-r from-brand-accentGreen/10 to-emerald-500/10 p-3 rounded-xl border border-brand-accentGreen/20 flex gap-2.5 items-start text-left">
+                    <Brain className="h-5 w-5 text-brand-accentGreen flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                      *AI Insight:* Pengeluaran makanan naik 15% minggu ini. Anda berada dalam batas aman budget harian, namun kurangi langganan hiburan untuk menjaga target hoard kekayaan 30%.
+                    </p>
+                  </div>
                 </div>
-              )}
-            </div>
 
-            {/* Line Chart: Actual vs Forecast */}
-            <div className="bg-white dark:bg-brand-cardDark rounded-2xl p-5 border border-gray-100 dark:border-brand-borderDark shadow-sm">
-              <h3 className="font-bold text-sm uppercase tracking-wider text-gray-900 dark:text-white mb-4">Tren & Prediksi Sisa Dana</h3>
-              <div className="h-60">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={lineData} margin={{ left: -10, right: 10 }}>
-                    <XAxis dataKey="name" stroke="#888888" fontSize={10} tickLine={false} />
-                    <YAxis stroke="#888888" fontSize={10} tickLine={false} tickFormatter={(tick: number) => `${tick / 1000}k`} />
-                    <Tooltip formatter={(value: number) => formatIDR(value)} />
-                    <Legend wrapperStyle={{ fontSize: "10px" }} />
-                    <Line type="monotone" dataKey="pengeluaran" stroke="#3B82F6" strokeWidth={2} name="Riwayat Pengeluaran" />
-                    <Line type="monotone" dataKey="forecast" stroke="#10B981" strokeWidth={2} strokeDasharray="5 5" name="Prediksi AI" />
-                  </LineChart>
-                </ResponsiveContainer>
+                {/* Donut Chart: Spending Breakdown */}
+                <div className="bg-white dark:bg-brand-cardDark rounded-2xl p-5 border border-gray-100 dark:border-brand-borderDark shadow-sm">
+                  <h3 className="font-bold text-sm uppercase tracking-wider text-gray-900 dark:text-white mb-4">Distribusi Pengeluaran</h3>
+                  {getPieData().length === 0 ? (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-4">Belum ada data pengeluaran.</p>
+                  ) : (
+                    <div className="h-60">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={getPieData()}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={80}
+                            paddingAngle={5}
+                            dataKey="value"
+                          >
+                            {getPieData().map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value: number) => formatIDR(value)} />
+                          <Legend iconType="circle" wrapperStyle={{ fontSize: "10px", marginTop: "10px" }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+
+                {/* Line Chart: Actual vs Forecast */}
+                <div className="bg-white dark:bg-brand-cardDark rounded-2xl p-5 border border-gray-100 dark:border-brand-borderDark shadow-sm">
+                  <h3 className="font-bold text-sm uppercase tracking-wider text-gray-900 dark:text-white mb-4">Tren & Prediksi Sisa Dana</h3>
+                  <div className="h-60">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={lineData} margin={{ left: -10, right: 10 }}>
+                        <XAxis dataKey="name" stroke="#888888" fontSize={10} tickLine={false} />
+                        <YAxis stroke="#888888" fontSize={10} tickLine={false} tickFormatter={(tick: number) => `${tick / 1000}k`} />
+                        <Tooltip formatter={(value: number) => formatIDR(value)} />
+                        <Legend wrapperStyle={{ fontSize: "10px" }} />
+                        <Line type="monotone" dataKey="pengeluaran" stroke="#3B82F6" strokeWidth={2} name="Riwayat Pengeluaran" />
+                        <Line type="monotone" dataKey="forecast" stroke="#10B981" strokeWidth={2} strokeDasharray="5 5" name="Prediksi AI" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
+
+            {analysisMode === "calendar" && (
+              <div className="space-y-6 animate-fadeIn">
+                {/* Interactive Calendar Card */}
+                <div className="bg-white dark:bg-brand-cardDark rounded-3xl p-5 border border-gray-100 dark:border-brand-borderDark shadow-sm">
+                  {/* Calendar Header */}
+                  <div className="flex justify-between items-center mb-6 bg-gray-50 dark:bg-brand-bgDark p-3.5 rounded-2xl border border-gray-100 dark:border-brand-borderDark/40">
+                    <button 
+                      onClick={handlePrevMonth}
+                      className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-brand-cardDark border border-transparent hover:border-gray-200 dark:hover:border-brand-borderDark text-gray-500 dark:text-gray-400 transition"
+                    >
+                      <ChevronRight className="h-5 w-5 rotate-180" />
+                    </button>
+                    <span className="font-extrabold text-sm text-gray-900 dark:text-white uppercase tracking-wider">
+                      {INDONESIAN_MONTHS[currentMonth]} {currentYear}
+                    </span>
+                    <button 
+                      onClick={handleNextMonth}
+                      className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-brand-cardDark border border-transparent hover:border-gray-200 dark:hover:border-brand-borderDark text-gray-500 dark:text-gray-400 transition"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  {/* Weekday Headers */}
+                  <div className="grid grid-cols-7 gap-2 text-center mb-3">
+                    {["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"].map((dayName, idx) => (
+                      <span key={idx} className={`text-[10px] font-extrabold uppercase tracking-wide ${idx === 0 ? "text-red-500" : "text-gray-400"}`}>
+                        {dayName}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Calendar Grid */}
+                  <div className="grid grid-cols-7 gap-2">
+                    {getDaysArray().map((day, idx) => {
+                      if (day === null) {
+                        return <div key={`empty-${idx}`} className="h-14" />;
+                      }
+
+                      const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      const daySpending = calendarSpendingMap[dateStr] || 0;
+                      const isSelected = selectedDateStr === dateStr;
+                      const isToday = new Date().toDateString() === new Date(currentYear, currentMonth, day).toDateString();
+
+                      return (
+                        <button
+                          key={`day-${day}`}
+                          onClick={() => setSelectedDateStr(dateStr)}
+                          className={`h-14 flex flex-col justify-between p-1.5 rounded-xl border text-left transition select-none ${
+                            isSelected 
+                              ? "bg-gradient-to-tr from-brand-accentGreen to-emerald-600 border-transparent text-white shadow-md shadow-brand-accentGreen/20 scale-[1.02]" 
+                              : isToday
+                                ? "bg-brand-accentBlue/10 border-brand-accentBlue/30 text-brand-accentBlue dark:text-white font-extrabold"
+                                : "bg-gray-50 dark:bg-brand-bgDark/40 border-gray-100 dark:border-brand-borderDark/40 text-gray-900 dark:text-gray-100 hover:border-brand-accentGreen/30"
+                          }`}
+                        >
+                          <span className={`text-xs font-bold ${isSelected ? "text-white" : isToday ? "text-brand-accentBlue" : idx % 7 === 0 ? "text-red-500" : "text-gray-500 dark:text-gray-400"}`}>
+                            {day}
+                          </span>
+                          {daySpending > 0 && (
+                            <span className={`text-[9px] font-black tracking-tighter truncate w-full ${isSelected ? "text-white" : "text-red-500"}`}>
+                              {formatShortIDR(daySpending)}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Day Details Area */}
+                {selectedDateStr && (
+                  <div className="bg-white dark:bg-brand-cardDark rounded-3xl p-5 border border-gray-100 dark:border-brand-borderDark shadow-sm space-y-4 animate-fadeIn">
+                    <div className="flex justify-between items-center border-b border-gray-100 dark:border-brand-borderDark/50 pb-3">
+                      <div>
+                        <h4 className="font-extrabold text-[9px] uppercase tracking-widest text-gray-400">Pengeluaran Tanggal</h4>
+                        <span className="font-bold text-xs text-gray-900 dark:text-white">
+                          {selectedDateStr.split("-")[2]} {INDONESIAN_MONTHS[parseInt(selectedDateStr.split("-")[1]) - 1]} {selectedDateStr.split("-")[0]}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <h4 className="font-extrabold text-[9px] uppercase tracking-widest text-gray-400">Total Harian</h4>
+                        <span className="font-extrabold text-sm text-red-500">
+                          {formatIDR(calendarSpendingMap[selectedDateStr] || 0)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {getTransactionsForSelectedDate().length === 0 ? (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-4">Tidak ada transaksi pada tanggal ini.</p>
+                      ) : (
+                        getTransactionsForSelectedDate().map((tx: any) => (
+                          <div 
+                            key={tx.id} 
+                            className="flex justify-between items-center p-3.5 bg-gray-50 dark:bg-brand-bgDark/30 border border-gray-100 dark:border-brand-borderDark/30 rounded-2xl"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <span className="font-bold text-xs text-gray-900 dark:text-white block truncate">{tx.description}</span>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[9px] bg-gray-100 dark:bg-brand-bgDark text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full capitalize font-semibold">
+                                  {tx.category_name}
+                                </span>
+                                <span className="text-[9px] text-gray-400 uppercase tracking-widest">
+                                  {tx.source}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-3 ml-4">
+                              <span className="font-extrabold text-xs text-red-500">
+                                -{formatIDR(tx.amount)}
+                              </span>
+                              <button 
+                                onClick={async () => {
+                                  await handleDeleteTransaction(tx.id);
+                                  fetchData();
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-100 dark:hover:bg-brand-bgDark transition"
+                                title="Hapus"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

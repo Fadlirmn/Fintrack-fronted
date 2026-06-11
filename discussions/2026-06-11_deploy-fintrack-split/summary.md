@@ -2,22 +2,20 @@
 
 **Tanggal:** 2026-06-11  
 **Status:** selesai  
-**Versi:** v4  
+**Versi:** v5  
 
 ## Konteks
-Migrasi setup VPS via Cloudflare Tunnel (`server.home-sumbul.my.id`), setup deployment frontend Next.js, dan perbaikan kegagalan build/deploy.
+Migrasi setup VPS backend via Cloudflare Tunnel (`fintrack.home-sumbul.my.id`), deployment frontend Next.js ke Vercel, perbaikan konfigurasi otentikasi, pembersihan data mockup, dan penambahan fitur kalender harian.
 
 ## Keputusan & Hasil
-- Menutup port publik VPS & memakai Cloudflare Tunnel.
-- Menghapus Nginx & Certbot di VPS, SSL diurus Cloudflare.
-- Deploy frontend di Vercel terhubung ke VPS backend.
-- Menambahkan file DEPLOY.md berisi panduan lengkap deploy Vercel & Docker untuk frontend.
-- Memperbaiki kegagalan build Vercel dengan:
-  1. Mengubah properti `formatter` menjadi `tickFormatter` pada `YAxis` (Recharts).
-  2. Menambahkan `transpilePackages: ['lucide-react']` di `next.config.js` untuk mengatasi error barrel import.
+- Menutup port publik VPS & mengarahkan traffic backend ke domain `fintrack.home-sumbul.my.id` via Cloudflare Tunnel.
+- Menghubungkan frontend Vercel secara langsung ke domain backend produksi di `.env` & `.env.example`.
+- Menghapus semua data mockup fallbacks dan bypass login offline untuk integrasi riil.
+- Mengimplementasikan fitur pelacakan pengeluaran harian berbasis grid kalender interaktif di tab Analisis beserta detail daftar transaksi per tanggal.
+- Mengubah grafik tren sisa dana agar terhitung secara dinamis dari transaksi riil.
 
 ## Tindak Lanjut
-- [ ] Monitor status deployment frontend di Vercel.
+- [ ] Lakukan verifikasi integrasi Telegram Bot & Webhook.
 
 ---
 *Dibuat otomatis oleh agent · maks. 200 kata*
