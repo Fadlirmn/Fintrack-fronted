@@ -3,20 +3,26 @@ const nextConfig = {
   // Standalone output untuk Docker/self-hosted deployment
   output: 'standalone',
 
-  // API backend URL
-  env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-  },
-
-  // Proxy /api/* ke backend Go agar browser tidak perlu tahu alamat internal
-  // Ini bekerja saat NEXT_PUBLIC_API_URL dikosongkan (gunakan relative path)
+  // Proxy /api/* ke backend Go agar browser tidak perlu tahu alamat internal.
+  // Berlaku untuk SEMUA request (client-side & server-side) karena Next.js
+  // akan proxy di edge/server sebelum mengirim ke browser.
+  //
+  // Cara kerja di Docker:
+  //   Browser → https://fintrack.home-sumbul.my.id/api/... → Cloudflared
+  //   → Next.js:3000 → rewrite → http://fintrack-api:8080/api/...
+  //
+  // NEXT_PUBLIC_API_URL harus dikosongkan ("") di Docker agar relative path digunakan.
   async rewrites() {
-    const apiUrl = process.env.FINTRACK_API_INTERNAL_URL;
-    if (!apiUrl) return [];
+    const apiUrl =
+      process.env.FINTRACK_API_INTERNAL_URL || 'http://fintrack-api:8080';
     return [
       {
         source: '/api/:path*',
         destination: `${apiUrl}/api/:path*`,
+      },
+      {
+        source: '/internal/:path*',
+        destination: `${apiUrl}/internal/:path*`,
       },
     ];
   },

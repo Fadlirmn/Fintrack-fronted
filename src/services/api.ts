@@ -1,4 +1,9 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+// NEXT_PUBLIC_API_URL:
+//   - Diisi (mis. https://fintrack.home-sumbul.my.id) → langsung hit URL tersebut (dev/Vercel)
+//   - Kosong string ""  → pakai relative path "" = Next.js rewrites proxy ke fintrack-api (Docker)
+//   - Tidak diset       → sama seperti kosong (Docker)
+const _rawApiUrl = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = (_rawApiUrl !== undefined && _rawApiUrl !== "") ? _rawApiUrl : "";
 
 async function request(path: string, options: RequestInit = {}) {
   const url = `${API_URL}${path}`;
