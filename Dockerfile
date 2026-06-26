@@ -39,7 +39,9 @@ RUN addgroup -S nextjs && adduser -S nextjs -G nextjs
 # Copy hanya output yang dibutuhkan production
 COPY --from=builder --chown=nextjs:nextjs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nextjs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nextjs /app/public ./public
+# public/ mungkin kosong atau tidak ada — buat terlebih dahulu agar COPY tidak gagal
+RUN mkdir -p ./public
+COPY --from=builder --chown=nextjs:nextjs /app/public/ ./public/
 
 USER nextjs
 
