@@ -26,6 +26,11 @@ import {
   Cpu,
   HardDrive,
   MemoryStick,
+  Camera,
+  ScanLine,
+  ExternalLink,
+  MessageCircle,
+  Scan,
 } from "lucide-react";
 import { api } from "@/services/api";
 import { PasswordInput } from "@/components/PasswordInput";
@@ -74,6 +79,10 @@ export default function DashboardPage() {
   const [category, setCategory] = useState("makanan");
   const [customCategory, setCustomCategory] = useState("");
   const [loading, setLoading] = useState(false);
+  const [telegramLoading, setTelegramLoading] = useState(false);
+
+  // Scan Struk modal
+  const [showScanModal, setShowScanModal] = useState(false);
 
   // Telegram
   const [linkCode, setLinkCode] = useState("");
@@ -320,13 +329,13 @@ export default function DashboardPage() {
   };
 
   const handleGenerateCode = async () => {
-    setLoading(true);
+    setTelegramLoading(true);
     try {
       const res = await api.generateLinkCode();
       setLinkCode(res.code);
       setLinkExpiry(new Date(res.expires_at).toLocaleTimeString());
     } catch { setLinkCode("ERR-GEN"); }
-    finally { setLoading(false); }
+    finally { setTelegramLoading(false); }
   };
 
   const copyCode = () => {
@@ -1036,9 +1045,9 @@ export default function DashboardPage() {
                       {copied && <p className="text-[10px] text-brand-accentGreen font-semibold animate-pulse">Buka bot Telegram dan paste: /link {linkCode}</p>}
                     </div>
                   ) : (
-                    <button onClick={handleGenerateCode} disabled={loading}
-                      className="w-full py-2.5 bg-gradient-to-r from-brand-accentGreen to-emerald-600 text-white text-xs font-bold rounded-xl shadow-md hover:brightness-105 transition">
-                      {loading ? "Membuat kode..." : "Generate Kode Tautan Baru"}
+                    <button onClick={handleGenerateCode} disabled={telegramLoading}
+                      className="w-full py-2.5 bg-gradient-to-r from-brand-accentGreen to-emerald-600 text-white text-xs font-bold rounded-xl shadow-md hover:brightness-105 transition disabled:opacity-50">
+                      {telegramLoading ? "Membuat kode..." : "Generate Kode Tautan Baru"}
                     </button>
                   )}
                 </div>
@@ -1135,14 +1144,25 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* ── FAB Add (Home & Calendar) ─────────────────────────────────────── */}
+      {/* ── FAB Add + Scan Struk (Home & Calendar) ──────────────────────── */}
       {(activeTab === "home" || activeTab === "calendar") && (
-        <button
-          onClick={() => openAddModal(activeTab === "calendar" && selectedDate ? selectedDate : todayStr)}
-          className="fixed bottom-24 right-1/2 translate-x-[200px] h-12 w-12 rounded-full bg-gradient-to-tr from-brand-accentGreen to-emerald-600 text-white flex items-center justify-center shadow-lg shadow-brand-accentGreen/20 hover:scale-105 active:scale-95 transition-all z-40 border border-emerald-500/30"
-        >
-          <Plus className="h-6 w-6" />
-        </button>
+        <div className="fixed bottom-24 right-1/2 translate-x-[160px] flex flex-col items-center gap-2 z-40">
+          {/* Scan Struk FAB */}
+          <button
+            onClick={() => setShowScanModal(true)}
+            className="h-10 w-10 rounded-full bg-white dark:bg-brand-cardDark border border-gray-200 dark:border-brand-borderDark text-brand-accentBlue flex items-center justify-center shadow-md hover:scale-105 active:scale-95 transition-all"
+            title="Scan Struk"
+          >
+            <ScanLine className="h-5 w-5" />
+          </button>
+          {/* Add Expense FAB */}
+          <button
+            onClick={() => openAddModal(activeTab === "calendar" && selectedDate ? selectedDate : todayStr)}
+            className="h-12 w-12 rounded-full bg-gradient-to-tr from-brand-accentGreen to-emerald-600 text-white flex items-center justify-center shadow-lg shadow-brand-accentGreen/20 hover:scale-105 active:scale-95 transition-all border border-emerald-500/30"
+          >
+            <Plus className="h-6 w-6" />
+          </button>
+        </div>
       )}
 
       {/* ── Bottom Nav ───────────────────────────────────────────────────── */}
@@ -1163,6 +1183,84 @@ export default function DashboardPage() {
           </button>
         ))}
       </nav>
+
+      {/* ── Scan Struk Modal ──────────────────────────────────────────────── */}
+      {showScanModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-50 animate-fadeIn">
+          <div className="absolute inset-0" onClick={() => setShowScanModal(false)} />
+          <div className="relative w-full max-w-[480px] bg-white dark:bg-brand-cardDark border-t border-gray-100 dark:border-brand-borderDark/80 rounded-t-3xl p-6 shadow-2xl z-10">
+            <div className="w-12 h-1 bg-gray-200 dark:bg-brand-borderDark rounded-full mx-auto mb-5" />
+            <div className="flex justify-between items-center mb-5">
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-brand-accentBlue to-indigo-600 flex items-center justify-center">
+                  <ScanLine className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base">Scan Struk</h3>
+                  <p className="text-[10px] text-gray-400">AI-powered receipt scanner</p>
+                </div>
+              </div>
+              <button onClick={() => setShowScanModal(false)} className="text-xs font-semibold text-gray-400 hover:text-gray-600">Tutup</button>
+            </div>
+
+            {/* Info Card */}
+            <div className="bg-gradient-to-br from-brand-accentBlue/10 to-indigo-500/10 border border-brand-accentBlue/20 rounded-2xl p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <Camera className="h-5 w-5 text-brand-accentBlue flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-gray-800 dark:text-gray-100 mb-1">Fitur Scan Struk tersedia via Telegram Bot</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+                    Cukup kirim foto struk ke bot Telegram FinTrack — AI akan membaca detail item, total, dan kategori secara otomatis. PDF laporan dikirim langsung ke chat kamu.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Steps */}
+            <div className="space-y-2 mb-5">
+              <p className="text-[10px] font-extrabold uppercase tracking-widest text-gray-400 mb-2">Cara Scan Struk</p>
+              {[
+                { step: "1", icon: MessageCircle, text: "Buka bot Telegram FinTrack", sub: user?.telegram_linked ? "Akun kamu sudah terhubung ✅" : "Hubungkan dulu di tab Profil → Telegram" },
+                { step: "2", icon: Camera, text: "Foto struk & kirim ke bot", sub: "Atau ketik /scan untuk mode batch" },
+                { step: "3", icon: CheckCircle, text: "Konfirmasi & simpan", sub: "AI baca otomatis, kamu tinggal konfirmasi" },
+              ].map(({ step, icon: Icon, text, sub }) => (
+                <div key={step} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-brand-bgDark rounded-xl border border-gray-100 dark:border-brand-borderDark/50">
+                  <div className="h-6 w-6 rounded-full bg-brand-accentBlue/10 border border-brand-accentBlue/20 flex items-center justify-center flex-shrink-0">
+                    <span className="text-[10px] font-black text-brand-accentBlue">{step}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-gray-800 dark:text-gray-100">{text}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{sub}</p>
+                  </div>
+                  <Icon className="h-4 w-4 text-gray-300 flex-shrink-0" />
+                </div>
+              ))}
+            </div>
+
+            {/* CTA buttons */}
+            <div className="flex flex-col gap-2">
+              <a
+                href="https://t.me/fintrack_hsbot"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 bg-gradient-to-r from-brand-accentBlue to-indigo-600 text-white font-bold text-xs rounded-xl shadow-lg flex items-center justify-center gap-2 hover:brightness-105 transition"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Buka Bot Telegram
+                <ExternalLink className="h-3 w-3 opacity-70" />
+              </a>
+              {!user?.telegram_linked && (
+                <button
+                  onClick={() => { setShowScanModal(false); setActiveTab("profile"); setProfileSection("telegram"); }}
+                  className="w-full py-2.5 border border-gray-200 dark:border-brand-borderDark text-xs font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-brand-bgDark transition text-gray-500"
+                >
+                  Hubungkan Telegram Dulu →
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Add Expense Modal ─────────────────────────────────────────────── */}
       {showAddModal && (
