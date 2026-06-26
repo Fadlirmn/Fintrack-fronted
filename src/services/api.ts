@@ -90,4 +90,8 @@ export const api = {
 
   deleteFixedExpense: (id: string) =>
     request(`/api/v1/fixed-expenses/${id}`, { method: "DELETE" }),
+
+  // ── Home Server ───────────────────────────────────────────────────────────
+  getServerStatus: () => request("/api/v1/home/status"),
+  getServerResources: () => request("/api/v1/home/resources"),
 };

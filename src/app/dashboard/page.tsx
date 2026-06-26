@@ -22,6 +22,10 @@ import {
   AlertTriangle,
   Send,
   Zap,
+  Server,
+  Cpu,
+  HardDrive,
+  MemoryStick,
 } from "lucide-react";
 import { api } from "@/services/api";
 import {
@@ -88,6 +92,12 @@ export default function DashboardPage() {
   const [newFeName, setNewFeName] = useState("");
   const [newFeAmount, setNewFeAmount] = useState("");
 
+  // Server state
+  const [serverStatus, setServerStatus] = useState<any>(null);
+  const [serverResources, setServerResources] = useState<any>(null);
+  const [serverLoading, setServerLoading] = useState(false);
+  const [serverError, setServerError] = useState("");
+
   // Profile section
   const [profileSection, setProfileSection] = useState<"settings"|"telegram"|"fixed">("settings");
 
@@ -123,14 +133,37 @@ export default function DashboardPage() {
       setTransactions(txs || []);
       setSummary(summ || { total_spending:0, telegram_spending:0, web_spending:0, categories_breakdown:{}, budget_progress:[] });
       setFixedExpenses(fes || []);
-      // Simpan nama kategori dari API (lowercase)
       setApiCategories((cats || []).map((c: any) => c.name?.toLowerCase()).filter(Boolean));
     } catch {
       router.push("/");
     }
   };
 
+  const fetchServerData = async () => {
+    setServerLoading(true);
+    setServerError("");
+    try {
+      const [status, resources] = await Promise.all([
+        api.getServerStatus(),
+        api.getServerResources(),
+      ]);
+      setServerStatus(status);
+      setServerResources(resources);
+    } catch (e: any) {
+      setServerError(e.message || "Home Server tidak dapat dijangkau");
+    } finally {
+      setServerLoading(false);
+    }
+  };
+
   useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { fetchServerData(); }, []);
+
+  // Auto-refresh server data every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(fetchServerData, 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   // ── Derived calculations ──────────────────────────────────────────────────
   const spendPct = (100 - wealthGoal) / 100;
@@ -398,6 +431,111 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Home Server Widget */}
+            <div className="bg-white dark:bg-brand-cardDark rounded-2xl p-5 border border-gray-100 dark:border-brand-borderDark shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Server className="h-4 w-4 text-brand-accentBlue" />
+                  <h3 className="font-bold text-sm uppercase tracking-wider text-gray-900 dark:text-white">Home Server</h3>
+                </div>
+                <button
+                  onClick={fetchServerData}
+                  disabled={serverLoading}
+                  className="text-[10px] text-brand-accentGreen font-semibold hover:underline disabled:opacity-50 transition"
+                >
+                  {serverLoading ? "Memuat..." : "↻ Refresh"}
+                </button>
+              </div>
+
+              {serverError ? (
+                <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/40 rounded-xl text-xs text-red-500 font-semibold">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                  {serverError}
+                </div>
+              ) : serverLoading && !serverStatus ? (
+                <div className="grid grid-cols-2 gap-3 animate-pulse">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="h-14 bg-gray-100 dark:bg-brand-bgDark rounded-xl" />
+                  ))}
+                </div>
+              ) : serverStatus && serverResources ? (
+                <div className="space-y-3">
+                  {/* Status row */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-gray-50 dark:bg-brand-bgDark rounded-xl p-3 border border-gray-100 dark:border-brand-borderDark/50">
+                      <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide flex items-center gap-1">
+                        <Server className="h-3 w-3" /> Hostname
+                      </p>
+                      <p className="text-xs font-bold mt-1 text-gray-800 dark:text-gray-100 truncate">{serverStatus.hostname}</p>
+                      <p className="text-[9px] text-gray-400 mt-0.5">{serverStatus.os}</p>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-brand-bgDark rounded-xl p-3 border border-gray-100 dark:border-brand-borderDark/50">
+                      <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide">⏱ Uptime</p>
+                      <p className="text-xs font-bold mt-1 text-gray-800 dark:text-gray-100">{serverStatus.uptime}</p>
+                      <p className="text-[9px] text-gray-400 mt-0.5">load: {serverStatus.load_avg}</p>
+                    </div>
+                  </div>
+
+                  {/* Resources row */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* CPU */}
+                    {(() => {
+                      const cpu = serverResources.cpu_percent ?? 0;
+                      const cpuColor = cpu > 85 ? "text-red-500" : cpu > 60 ? "text-amber-500" : "text-brand-accentGreen";
+                      return (
+                        <div className="bg-gray-50 dark:bg-brand-bgDark rounded-xl p-3 border border-gray-100 dark:border-brand-borderDark/50 text-center">
+                          <Cpu className="h-4 w-4 mx-auto text-brand-accentBlue mb-1" />
+                          <p className={`text-sm font-extrabold ${cpuColor}`}>{cpu.toFixed(1)}%</p>
+                          <p className="text-[9px] text-gray-400 mt-0.5 font-semibold">CPU</p>
+                          <div className="mt-1.5 w-full bg-gray-100 dark:bg-brand-borderDark h-1 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-500 ${cpu > 85 ? "bg-red-500" : cpu > 60 ? "bg-amber-400" : "bg-brand-accentGreen"}`} style={{ width: `${Math.min(cpu, 100)}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* RAM */}
+                    {(() => {
+                      const used = serverResources.ram_used_mb ?? 0;
+                      const total = serverResources.ram_total_mb ?? 1;
+                      const pct = (used / total) * 100;
+                      const ramColor = pct > 85 ? "text-red-500" : pct > 65 ? "text-amber-500" : "text-blue-500";
+                      return (
+                        <div className="bg-gray-50 dark:bg-brand-bgDark rounded-xl p-3 border border-gray-100 dark:border-brand-borderDark/50 text-center">
+                          <MemoryStick className="h-4 w-4 mx-auto text-purple-400 mb-1" />
+                          <p className={`text-sm font-extrabold ${ramColor}`}>{Math.round(pct)}%</p>
+                          <p className="text-[9px] text-gray-400 mt-0.5 font-semibold">{used}/{total} MB</p>
+                          <div className="mt-1.5 w-full bg-gray-100 dark:bg-brand-borderDark h-1 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-500 ${pct > 85 ? "bg-red-500" : pct > 65 ? "bg-amber-400" : "bg-blue-500"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Disk */}
+                    {(() => {
+                      const used = serverResources.disk_used_gb ?? 0;
+                      const total = serverResources.disk_total_gb ?? 1;
+                      const pct = (used / total) * 100;
+                      const diskColor = pct > 85 ? "text-red-500" : pct > 65 ? "text-amber-500" : "text-emerald-500";
+                      return (
+                        <div className="bg-gray-50 dark:bg-brand-bgDark rounded-xl p-3 border border-gray-100 dark:border-brand-borderDark/50 text-center">
+                          <HardDrive className="h-4 w-4 mx-auto text-emerald-400 mb-1" />
+                          <p className={`text-sm font-extrabold ${diskColor}`}>{Math.round(pct)}%</p>
+                          <p className="text-[9px] text-gray-400 mt-0.5 font-semibold">{used}/{total} GB</p>
+                          <div className="mt-1.5 w-full bg-gray-100 dark:bg-brand-borderDark h-1 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-500 ${pct > 85 ? "bg-red-500" : pct > 65 ? "bg-amber-400" : "bg-emerald-500"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 text-center py-3">Tidak ada data server.</p>
+              )}
             </div>
 
             {/* Budget Progress */}
