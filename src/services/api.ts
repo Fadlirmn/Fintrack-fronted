@@ -41,6 +41,12 @@ export const api = {
       body: JSON.stringify({ monthly_income: monthlyIncome, wealth_goal: wealthGoal }),
     }),
 
+  updateAccount: (data: { name?: string; email?: string; old_password?: string; new_password?: string }) =>
+    request("/api/v1/auth/account", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
   // ── Telegram ──────────────────────────────────────────────────────────────
   generateLinkCode: () =>
     request("/api/v1/telegram/link-code", { method: "POST" }),

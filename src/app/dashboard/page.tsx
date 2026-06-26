@@ -99,7 +99,16 @@ export default function DashboardPage() {
   const [serverError, setServerError] = useState("");
 
   // Profile section
-  const [profileSection, setProfileSection] = useState<"settings"|"telegram"|"fixed">("settings");
+  const [profileSection, setProfileSection] = useState<"account"|"settings"|"telegram"|"fixed">("account");
+
+  // Account edit form
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editOldPass, setEditOldPass] = useState("");
+  const [editNewPass, setEditNewPass] = useState("");
+  const [editConfirmPass, setEditConfirmPass] = useState("");
+  const [accountError, setAccountError] = useState("");
+  const [accountSuccess, setAccountSuccess] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -130,6 +139,9 @@ export default function DashboardPage() {
       setUser(me);
       if (me.monthly_income) setMonthlyIncome(me.monthly_income);
       if (me.wealth_goal) setWealthGoal(me.wealth_goal);
+      // Pre-fill edit form with current values
+      setEditName(me.name || "");
+      setEditEmail(me.email || "");
       setTransactions(txs || []);
       setSummary(summ || { total_spending:0, telegram_spending:0, web_spending:0, categories_breakdown:{}, budget_progress:[] });
       setFixedExpenses(fes || []);
@@ -201,6 +213,43 @@ export default function DashboardPage() {
     try { await api.updateProfile(monthlyIncome, wealthGoal); await fetchAll(); }
     catch (e) { console.error(e); }
     finally { setLoading(false); }
+  };
+
+  const handleSaveAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAccountError("");
+    setAccountSuccess("");
+
+    // Validate
+    if (editNewPass && editNewPass !== editConfirmPass) {
+      setAccountError("Konfirmasi password baru tidak cocok");
+      return;
+    }
+    if (editNewPass && editNewPass.length < 6) {
+      setAccountError("Password baru minimal 6 karakter");
+      return;
+    }
+    if (editNewPass && !editOldPass) {
+      setAccountError("Password lama wajib diisi untuk ganti password");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload: any = {};
+      if (editName.trim()) payload.name = editName.trim();
+      if (editEmail.trim() && editEmail.trim() !== user?.email) payload.email = editEmail.trim();
+      if (editNewPass) { payload.old_password = editOldPass; payload.new_password = editNewPass; }
+
+      await api.updateAccount(payload);
+      setAccountSuccess("Profil berhasil diperbarui!");
+      setEditOldPass(""); setEditNewPass(""); setEditConfirmPass("");
+      await fetchAll();
+    } catch (err: any) {
+      setAccountError(err.message || "Gagal memperbarui profil");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openAddModal = (date?: string) => {
@@ -782,10 +831,11 @@ export default function DashboardPage() {
             {/* User header */}
             <div className="bg-white dark:bg-brand-cardDark rounded-2xl p-5 border border-gray-100 dark:border-brand-borderDark shadow-sm flex items-center gap-4">
               <div className="h-16 w-16 rounded-full bg-gradient-to-tr from-brand-accentBlue to-brand-accentGreen flex items-center justify-center text-white text-2xl font-black flex-shrink-0">
-                {user?.email?.charAt(0).toUpperCase() || "S"}
+                {(user?.name?.charAt(0) || user?.email?.charAt(0) || "S").toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-extrabold text-base truncate">{user?.email || "User FinTrack"}</h3>
+                <h3 className="font-extrabold text-base truncate">{user?.name || user?.email || "User FinTrack"}</h3>
+                <p className="text-xs text-gray-400 truncate">{user?.name ? user.email : ""}</p>
                 <div className="flex items-center gap-2 mt-1">
                   {user?.telegram_linked ? (
                     <span className="text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
@@ -805,13 +855,119 @@ export default function DashboardPage() {
 
             {/* Section tabs */}
             <div className="flex bg-white dark:bg-brand-cardDark p-1 rounded-2xl border border-gray-100 dark:border-brand-borderDark shadow-sm gap-1">
-              {([["settings","⚙️ Keuangan"],["telegram","✈️ Telegram"],["fixed","🔒 Wajib"]] as const).map(([s, label]) => (
-                <button key={s} onClick={() => setProfileSection(s)}
-                  className={`flex-1 py-2 text-[11px] font-bold rounded-xl transition ${profileSection===s?"bg-gradient-to-r from-brand-accentGreen to-emerald-600 text-white shadow":"text-gray-500 hover:bg-gray-50 dark:hover:bg-brand-bgDark"}`}>
-                  {label}
-                </button>
-              ))}
+              {(["account","settings","telegram","fixed"] as const).map((s) => {
+                const labels: Record<string, string> = { account: "👤 Akun", settings: "⚙️ Keuangan", telegram: "✈️ Telegram", fixed: "🔒 Wajib" };
+                return (
+                  <button key={s} id={`profile-tab-${s}`} onClick={() => setProfileSection(s)}
+                    className={`flex-1 py-2 text-[10px] font-bold rounded-xl transition ${profileSection===s?"bg-gradient-to-r from-brand-accentGreen to-emerald-600 text-white shadow":"text-gray-500 hover:bg-gray-50 dark:hover:bg-brand-bgDark"}`}>
+                    {labels[s]}
+                  </button>
+                );
+              })}
             </div>
+
+            {/* ── Account Edit ── */}
+            {profileSection === "account" && (
+              <div className="bg-white dark:bg-brand-cardDark rounded-2xl p-5 border border-gray-100 dark:border-brand-borderDark shadow-sm">
+                <h3 className="font-bold text-sm uppercase tracking-wider mb-4">Edit Profil Akun</h3>
+                <form id="form-edit-account" onSubmit={handleSaveAccount} className="space-y-4">
+
+                  {/* Name */}
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1">Nama Tampilan</label>
+                    <input
+                      id="input-account-name"
+                      type="text"
+                      placeholder="Nama kamu (opsional)"
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-brand-borderDark rounded-xl bg-gray-50 dark:bg-brand-bgDark text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-accentGreen/50"
+                    />
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1">Email</label>
+                    <input
+                      id="input-account-email"
+                      type="email"
+                      value={editEmail}
+                      onChange={e => setEditEmail(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-brand-borderDark rounded-xl bg-gray-50 dark:bg-brand-bgDark text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-accentGreen/50"
+                    />
+                  </div>
+
+                  {/* Divider */}
+                  <div className="pt-1 border-t border-gray-100 dark:border-brand-borderDark">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Ganti Password</p>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 block mb-1">Password Lama</label>
+                        <input
+                          id="input-account-oldpass"
+                          type="password"
+                          placeholder="Wajib diisi jika ganti password"
+                          value={editOldPass}
+                          onChange={e => setEditOldPass(e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 dark:border-brand-borderDark rounded-xl bg-gray-50 dark:bg-brand-bgDark text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-accentGreen/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 block mb-1">Password Baru</label>
+                        <input
+                          id="input-account-newpass"
+                          type="password"
+                          placeholder="Min. 6 karakter"
+                          value={editNewPass}
+                          onChange={e => setEditNewPass(e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 dark:border-brand-borderDark rounded-xl bg-gray-50 dark:bg-brand-bgDark text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-accentGreen/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 block mb-1">Konfirmasi Password Baru</label>
+                        <input
+                          id="input-account-confirmpass"
+                          type="password"
+                          placeholder="Ulangi password baru"
+                          value={editConfirmPass}
+                          onChange={e => setEditConfirmPass(e.target.value)}
+                          className={`w-full px-4 py-2.5 border rounded-xl bg-gray-50 dark:bg-brand-bgDark text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-accentGreen/50 ${
+                            editConfirmPass && editConfirmPass !== editNewPass
+                              ? "border-red-400 dark:border-red-600"
+                              : "border-gray-200 dark:border-brand-borderDark"
+                          }`}
+                        />
+                        {editConfirmPass && editConfirmPass !== editNewPass && (
+                          <p className="text-[10px] text-red-500 font-semibold mt-1">Password tidak cocok</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Error / Success */}
+                  {accountError && (
+                    <div className="px-4 py-2.5 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl text-xs text-red-600 dark:text-red-400 font-semibold">
+                      ❌ {accountError}
+                    </div>
+                  )}
+                  {accountSuccess && (
+                    <div className="px-4 py-2.5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                      ✅ {accountSuccess}
+                    </div>
+                  )}
+
+                  <button
+                    id="btn-save-account"
+                    type="submit"
+                    disabled={loading || (editConfirmPass !== "" && editConfirmPass !== editNewPass)}
+                    className="w-full py-2.5 bg-gradient-to-r from-brand-accentGreen to-emerald-600 text-white text-xs font-bold rounded-xl shadow-md hover:brightness-105 transition disabled:opacity-50"
+                  >
+                    {loading ? "Menyimpan..." : "Simpan Perubahan"}
+                  </button>
+                </form>
+              </div>
+            )}
 
             {/* ── Financial Settings ── */}
             {profileSection === "settings" && (
