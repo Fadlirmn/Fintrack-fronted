@@ -1,12 +1,24 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // CATATAN: output: 'standalone' TIDAK digunakan karena frontend deploy ke Vercel.
-  // Vercel mengelola build dan serving otomatis.
-  // Jika suatu saat ingin pindah ke Docker/VPS, tambahkan kembali: output: 'standalone'
+  // Standalone output untuk Docker/self-hosted deployment
+  output: 'standalone',
 
-  // API backend URL (VPS)
+  // API backend URL
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  },
+
+  // Proxy /api/* ke backend Go agar browser tidak perlu tahu alamat internal
+  // Ini bekerja saat NEXT_PUBLIC_API_URL dikosongkan (gunakan relative path)
+  async rewrites() {
+    const apiUrl = process.env.FINTRACK_API_INTERNAL_URL;
+    if (!apiUrl) return [];
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${apiUrl}/api/:path*`,
+      },
+    ];
   },
 
   // Keamanan: hanya izinkan domain tertentu untuk gambar
