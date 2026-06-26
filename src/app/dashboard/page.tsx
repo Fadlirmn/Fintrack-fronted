@@ -28,6 +28,7 @@ import {
   MemoryStick,
 } from "lucide-react";
 import { api } from "@/services/api";
+import { PasswordInput } from "@/components/PasswordInput";
 import {
   ResponsiveContainer,
   PieChart,
@@ -904,9 +905,8 @@ export default function DashboardPage() {
                     <div className="space-y-3">
                       <div>
                         <label className="text-xs font-semibold text-gray-500 block mb-1">Password Lama</label>
-                        <input
+                        <PasswordInput
                           id="input-account-oldpass"
-                          type="password"
                           placeholder="Wajib diisi jika ganti password"
                           value={editOldPass}
                           onChange={e => setEditOldPass(e.target.value)}
@@ -915,9 +915,8 @@ export default function DashboardPage() {
                       </div>
                       <div>
                         <label className="text-xs font-semibold text-gray-500 block mb-1">Password Baru</label>
-                        <input
+                        <PasswordInput
                           id="input-account-newpass"
-                          type="password"
                           placeholder="Min. 6 karakter"
                           value={editNewPass}
                           onChange={e => setEditNewPass(e.target.value)}
@@ -926,9 +925,8 @@ export default function DashboardPage() {
                       </div>
                       <div>
                         <label className="text-xs font-semibold text-gray-500 block mb-1">Konfirmasi Password Baru</label>
-                        <input
+                        <PasswordInput
                           id="input-account-confirmpass"
-                          type="password"
                           placeholder="Ulangi password baru"
                           value={editConfirmPass}
                           onChange={e => setEditConfirmPass(e.target.value)}

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Loader2, TrendingUp, Sparkles, Moon, Sun } from "lucide-react";
 import { api } from "@/services/api";
+import { PasswordInput } from "@/components/PasswordInput";
 
 export default function AuthPage() {
   const router = useRouter();
@@ -131,15 +132,15 @@ export default function AuthPage() {
                 Kata Sandi
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
                   <Lock className="h-4 w-4 text-gray-400" />
                 </div>
-                <input
-                  type="password"
+                <PasswordInput
+                  id="input-login-password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 dark:border-brand-borderDark rounded-xl bg-gray-50 dark:bg-brand-bgDark text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-accentGreen/50 focus:border-brand-accentGreen transition text-sm"
+                  className="block w-full pl-10 pr-10 py-2.5 border border-gray-200 dark:border-brand-borderDark rounded-xl bg-gray-50 dark:bg-brand-bgDark text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-accentGreen/50 focus:border-brand-accentGreen transition text-sm"
                   placeholder="••••••••"
                 />
               </div>
